@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   User, 
@@ -11,7 +11,8 @@ import {
   Settings,
   BarChart3,
   Users,
-  Bell
+  Bell,
+  Home
 } from 'lucide-react';
 import './Navbar.css';
 import axios from 'axios';
@@ -19,6 +20,8 @@ import axios from 'axios';
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const userMenuRef = useRef(null);
+  const mobileMenuRef = useRef(null);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState('');
@@ -32,21 +35,37 @@ const Navbar = () => {
   const [editGithub, setEditGithub] = useState('');
   const [editLeetcode, setEditLeetcode] = useState('');
 
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   useEffect(() => {
     const email = localStorage.getItem('userEmail');
     if (email) {
       setIsLoggedIn(true);
       setUserEmail(email);
-      const payLoad = {
-    email: email
-  };
-  console.log(payLoad);
-      axios.post(`http://localhost:5000/user/details`,payLoad)
+      const payLoad = { email: email };
+      
+      axios.post(`${API_BASE}/user/details`, payLoad)
         .then((res) => {
-          console.log(res.data);
-          setUserName(res.data.user.name);
-          setGithubId(res.data.user.githubId);
-          setLeetcodeId(res.data.user.leetcodeId);
+          if (res.data && res.data.user) {
+            setUserName(res.data.user.name || '');
+            setGithubId(res.data.user.githubId || '');
+            setLeetcodeId(res.data.user.leetcodeId || '');
+          }
         })
         .catch(err => console.error('Error fetching user data:', err));
     }
@@ -57,13 +76,16 @@ const Navbar = () => {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
     setUserEmail('');
+    setUserName('');
+    setGithubId('');
+    setLeetcodeId('');
     setMenuOpen(false);
     setShowUserMenu(false);
-    setTimeout(() => navigate('/dashboard'), 100);
+    setTimeout(() => navigate('/'), 100);
   };
 
   const saveUserLinks = () => {
-    axios.post('http://localhost:5000/updateuserlinks', {
+    axios.post(`${API_BASE}/updateuserlinks`, {
       email: userEmail,
       githubId: editGithub,
       leetcodeId: editLeetcode
@@ -78,12 +100,24 @@ const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
+  const getInitials = (name, email) => {
+    if (name && name.trim()) {
+      return name.trim().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    return email ? email.charAt(0).toUpperCase() : 'U';
+  };
+
+  // Close mobile menu when navigating
+  const handleMobileNavClick = () => {
+    setMenuOpen(false);
+  };
+
   return (
     <>
       <nav className="navbar">
         <div className="container">
           <div className="navbar-content">
-            <Link to="/dashboard" className="navbar-brand">
+            <Link to="/" className="navbar-brand">
               <div className="brand-icon">
                 <Brain size={24} />
               </div>
@@ -96,25 +130,40 @@ const Navbar = () => {
             <button 
               className="mobile-menu-toggle"
               onClick={() => setMenuOpen(!menuOpen)}
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={menuOpen}
             >
               {menuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
 
             <div className="desktop-nav">
-              <Link 
-                to="/personalAnalysis" 
-                className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`}
-              >
-                <BarChart3 size={16} />
-                Personal Analysis
-              </Link>
-              <Link 
-                to="/recruitmentAnalysis" 
-                className={`nav-link ${isActive('/recruitmentAnalysis') ? 'active' : ''}`}
-              >
-                <Users size={16} />
-                Recruitment Analysis
-              </Link>
+              <div className="nav-menu">
+                <Link 
+                  to="/" 
+                  className={`nav-link ${isActive('/') ? 'active' : ''}`}
+                >
+                  <Home size={16} />
+                  Home
+                </Link>
+                {isLoggedIn && (
+                  <>
+                    <Link 
+                      to="/personalAnalysis" 
+                      className={`nav-link ${isActive('/personalAnalysis') ? 'active' : ''}`}
+                    >
+                      <BarChart3 size={16} />
+                      Personal Analysis
+                    </Link>
+                    <Link 
+                      to="/recruitmentAnalysis" 
+                      className={`nav-link ${isActive('/recruitmentAnalysis') ? 'active' : ''}`}
+                    >
+                      <Users size={16} />
+                      Recruitment Analysis
+                    </Link>
+                  </>
+                )}
+              </div>
 
               {!isLoggedIn ? (
                 <div className="auth-buttons">
@@ -127,8 +176,8 @@ const Navbar = () => {
                   </Link>
                 </div>
               ) : (
-                <div className="user-section">
-                  <button className="notification-btn">
+                <div className="user-section" ref={userMenuRef}>
+                  <button className="notification-btn" aria-label="Notifications">
                     <Bell size={16} />
                     <span className="notification-badge">2</span>
                   </button>
@@ -137,9 +186,11 @@ const Navbar = () => {
                     <button 
                       className="user-menu-trigger"
                       onClick={() => setShowUserMenu(!showUserMenu)}
+                      aria-haspopup="true"
+                      aria-expanded={showUserMenu}
                     >
-                      <div className="user-avatar">
-                        {userEmail.charAt(0).toUpperCase()}
+                      <div className="user-avatar" aria-hidden="true">
+                        {getInitials(userName, userEmail)}
                       </div>
                       <div className="user-info">
                         <div className="user-name">{userName || userEmail.split('@')[0]}</div>
@@ -148,46 +199,47 @@ const Navbar = () => {
                       <ChevronDown 
                         size={16} 
                         className={`chevron ${showUserMenu ? 'rotated' : ''}`} 
+                        aria-hidden="true"
                       />
                     </button>
                     
                     {showUserMenu && (
-                      <>
-                        <div className="user-menu-overlay" onClick={() => setShowUserMenu(false)} />
-                        <div className="user-dropdown">
-                          <div className="dropdown-header">
-                            <div className="user-avatar large">
-                              {userEmail.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="user-info">
-                              <div className="dropdown-name">{userName || userEmail.split('@')[0]}</div>
-                              <div className="dropdown-email">{userEmail}</div>
-                            </div>
+                      <div className="user-dropdown">
+                        <div className="dropdown-header">
+                          <div className="user-avatar large" aria-hidden="true">
+                            {getInitials(userName, userEmail)}
                           </div>
-                          <div className="dropdown-divider" />
-                          <div className="dropdown-menu">
-                            <button 
-                              className="dropdown-item"
-                              onClick={() => setShowProfileModal(true)}
-                            >
-                              <User size={16} />
-                              View Profile
-                            </button>
-                            <button className="dropdown-item">
-                              <Settings size={16} />
-                              Settings
-                            </button>
-                            <div className="dropdown-divider" />
-                            <button 
-                              onClick={handleLogout} 
-                              className="dropdown-item logout"
-                            >
-                              <LogOut size={16} />
-                              Sign Out
-                            </button>
+                          <div className="user-info">
+                            <div className="dropdown-name">{userName || userEmail.split('@')[0]}</div>
+                            <div className="dropdown-email">{userEmail}</div>
                           </div>
                         </div>
-                      </>
+                        <div className="dropdown-divider" />
+                        <div className="dropdown-menu">
+                          <button 
+                            className="dropdown-item"
+                            onClick={() => {
+                              setShowProfileModal(true);
+                              setShowUserMenu(false);
+                            }}
+                          >
+                            <User size={16} />
+                            View Profile
+                          </button>
+                          <button className="dropdown-item">
+                            <Settings size={16} />
+                            Settings
+                          </button>
+                          <div className="dropdown-divider" />
+                          <button 
+                            onClick={handleLogout} 
+                            className="dropdown-item logout"
+                          >
+                            <LogOut size={16} />
+                            Sign Out
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -197,40 +249,54 @@ const Navbar = () => {
         </div>
         
         {/* Mobile Navigation */}
-        <div className={`mobile-nav ${menuOpen ? 'mobile-nav-open' : ''}`}>
-          {menuOpen && <div className="mobile-nav-overlay" onClick={() => setMenuOpen(false)} />}
+        <div 
+          className={`mobile-nav ${menuOpen ? 'mobile-nav-open' : ''}`}
+          ref={mobileMenuRef}
+        >
           <div className="mobile-nav-content">
             <Link 
-              to="/personalAnalysis" 
-              className={`mobile-nav-link ${isActive('/personalAnalysis') ? 'active' : ''}`}
-              onClick={() => setMenuOpen(false)}
+              to="/" 
+              className={`mobile-nav-link ${isActive('/') ? 'active' : ''}`}
+              onClick={handleMobileNavClick}
             >
-              <BarChart3 size={16} />
-              Personal Analysis
+              <Home size={16} />
+              Home
             </Link>
-            <Link 
-              to="/recruitmentAnalysis" 
-              className={`mobile-nav-link ${isActive('/recruitmentAnalysis') ? 'active' : ''}`}
-              onClick={() => setMenuOpen(false)}
-            >
-              <Users size={16} />
-              Recruitment Analysis
-            </Link>
+            {isLoggedIn && (
+              <>
+                <Link 
+                  to="/personalAnalysis" 
+                  className={`mobile-nav-link ${isActive('/personalAnalysis') ? 'active' : ''}`}
+                  onClick={handleMobileNavClick}
+                >
+                  <BarChart3 size={16} />
+                  Personal Analysis
+                </Link>
+                <Link 
+                  to="/recruitmentAnalysis" 
+                  className={`mobile-nav-link ${isActive('/recruitmentAnalysis') ? 'active' : ''}`}
+                  onClick={handleMobileNavClick}
+                >
+                  <Users size={16} />
+                  Recruitment Analysis
+                </Link>
+              </>
+            )}
             
             {!isLoggedIn ? (
               <div className="mobile-auth-section">
                 <Link 
                   to="/login" 
                   className="mobile-nav-link"
-                  onClick={() => setMenuOpen(false)}
+                  onClick={handleMobileNavClick}
                 >
                   <User size={16} />
                   Sign In
                 </Link>
                 <Link 
                   to="/signup" 
-                  className="mobile-nav-link"
-                  onClick={() => setMenuOpen(false)}
+                  className="mobile-nav-link primary"
+                  onClick={handleMobileNavClick}
                 >
                   Get Started
                 </Link>
@@ -238,8 +304,8 @@ const Navbar = () => {
             ) : (
               <div className="mobile-user-section">
                 <div className="mobile-user-info">
-                  <div className="user-avatar">
-                    {userEmail.charAt(0).toUpperCase()}
+                  <div className="user-avatar" aria-hidden="true">
+                    {getInitials(userName, userEmail)}
                   </div>
                   <div className="user-info">
                     <div className="mobile-user-name">{userName || userEmail.split('@')[0]}</div>
@@ -278,7 +344,7 @@ const Navbar = () => {
       {showProfileModal && (
         <>
           <div className="modal-overlay" onClick={() => setShowProfileModal(false)} />
-          <div className="modal">
+          <div className="modal" role="dialog" aria-modal="true">
             <div className="modal-content">
               <div className="modal-header">
                 <div className="modal-title">
@@ -288,14 +354,15 @@ const Navbar = () => {
                 <button 
                   className="modal-close"
                   onClick={() => setShowProfileModal(false)}
+                  aria-label="Close"
                 >
                   <X size={20} />
                 </button>
               </div>
               <div className="modal-body">
                 <div className="profile-section">
-                  <div className="profile-avatar">
-                    {userEmail.charAt(0).toUpperCase()}
+                  <div className="profile-avatar" aria-hidden="true">
+                    {getInitials(userName, userEmail)}
                   </div>
                   <div className="profile-info">
                     <h3 className="profile-name">{userName || 'User'}</h3>
@@ -351,7 +418,7 @@ const Navbar = () => {
       {showEditModal && (
         <>
           <div className="modal-overlay" onClick={() => setShowEditModal(false)} />
-          <div className="modal">
+          <div className="modal" role="dialog" aria-modal="true">
             <div className="modal-content">
               <div className="modal-header">
                 <div className="modal-title">
@@ -361,6 +428,7 @@ const Navbar = () => {
                 <button 
                   className="modal-close"
                   onClick={() => setShowEditModal(false)}
+                  aria-label="Close"
                 >
                   <X size={20} />
                 </button>
@@ -374,6 +442,7 @@ const Navbar = () => {
                     placeholder="Enter your GitHub username"
                     value={editGithub} 
                     onChange={(e) => setEditGithub(e.target.value)} 
+                    aria-label="GitHub Username"
                   />
                 </div>
                 <div className="form-group">
@@ -384,6 +453,7 @@ const Navbar = () => {
                     placeholder="Enter your LeetCode username"
                     value={editLeetcode} 
                     onChange={(e) => setEditLeetcode(e.target.value)} 
+                    aria-label="LeetCode Username"
                   />
                 </div>
               </div>

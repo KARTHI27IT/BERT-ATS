@@ -6,7 +6,7 @@ import Navbar from './Components/Navbar/Navbar'
 import Signup from './Components/Signup/Signup'
 import Login from './Components/Login/Login'
 import RecruitmentAnalysis from './Components/RecruitmentAnalysis/RecruitmentAnalysis';
-import LandingPage from './Components/Dashboard/Dashboard';
+import Dashboard from './Components/Dashboard/Dashboard';
 
 function App() {
   const [count, setCount] = useState(0)
@@ -16,7 +16,12 @@ function App() {
       <Routes>
         <Route
           path="/"
-          element={<LandingPage />}
+          element={
+          <>
+          <Navbar />
+          <Dashboard />
+          </>
+        }
         />
         <Route
           path="/signup"

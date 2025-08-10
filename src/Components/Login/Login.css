@@ -39,12 +39,11 @@
   background: linear-gradient(135deg, var(--primary-50) 0%, white 50%, var(--gray-50) 100%);
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: var(--spacing-lg) 0;
 }
 
 .login-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: var(--spacing-3xl);
   align-items: center;
   max-width: 1200px;

@@ -92,7 +92,7 @@ const fetchLeetcodeGithubStats = async (req, res) => {
     const result = await userService.fetchLeetcodeGithubStatsService(req.body);
     
     if (result.status) {
-      res.status(200).json(result.report);  // Return actual stats
+      res.status(200).json(result.data);  // Return actual stats
     } else {
       res.status(400).json({ error: result.message });
     }
@@ -106,9 +106,9 @@ const generateReport = async (req, res) => {
   try {
     console.log("Request Body:", req.body);
     const result = await userService.generateReportService(req.body);
-
+    console.log(result.report);
     if (result.status) {
-      res.status(200).json({ report: result.report });  // Send report
+      res.status(200).json(result.report);  // Send report
     } else {
       res.status(400).json({ error: result.message });  // Send error message
     }

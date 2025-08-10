@@ -33,17 +33,18 @@
 
 /* Container */
 .signup-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 2rem;
-  max-width: 1200px;
-  width: 100%;
+ 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
 }
 
 /* Card */
 .signup-card {
   background: #fff;
   padding: 2rem;
+  width: 600px;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
   border: 1px solid var(--gray-200);
@@ -81,6 +82,7 @@
 
 /* Form */
 .signup-form {
+  
   display: flex;
   flex-direction: column;
   gap: 1.5rem;

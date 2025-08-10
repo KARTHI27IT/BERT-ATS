@@ -11,26 +11,15 @@ const { spawn } = require('child_process');
 const User = userSchemaModel; // Alias for convenience
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-// cheerio is kept for potential future scraping fallback, though not used in primary path now
-// const cheerio = require('cheerio'); // Uncomment if you decide to use scraping as a last resort
-
-// Use environment variables for sensitive data
-// Ensure these are set in your .env file or environment
 const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_jwt_secret_1234';
 
 if (!GOOGLE_API_KEY) {
     console.warn("Warning: GOOGLE_GENERATIVE_AI_API_KEY not set. AI report generation will fail.");
 }
-const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY || ''); // Use env var, will error gracefully if used without key
+const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY); 
 
-// --- USER AUTHENTICATION & MANAGEMENT ---
 
-/**
- * Creates a new user.
- * @param {Object} UserDetails - Object containing name, email, and password.
- * @returns {Object} - Status object with success flag, message, and potentially the user object.
- */
 const userCreateService = async (UserDetails) => {
   try {
     const existingUser = await User.findOne({ email: UserDetails.email });
@@ -58,11 +47,7 @@ const userCreateService = async (UserDetails) => {
   }
 };
 
-/**
- * Logs in a user.
- * @param {Object} UserDetails - Object containing email and password.
- * @returns {Object} - Status object with success flag, message, token, and user info.
- */
+
 const userLoginService = async (UserDetails) => {
   try {
     const email = UserDetails.email.trim().toLowerCase();
@@ -71,9 +56,8 @@ const userLoginService = async (UserDetails) => {
       return { status: false, message: "Email not registered." };
     }
 
-    // Assumes password comparison is done in the controller before calling this service
-    // or that UserDetails.password is the hashed version from DB for direct comparison (less common)
-    if (user.password !== UserDetails.password) { // This implies password was hashed and compared before
+
+    if (user.password !== UserDetails.password) { 
       return { status: false, message: "Incorrect password." };
     }
 
@@ -98,11 +82,7 @@ const userLoginService = async (UserDetails) => {
   }
 };
 
-/**
- * Retrieves user details by email.
- * @param {Object} UserDetails - Object containing email.
- * @returns {Object} - Status object with success flag, message, and user data.
- */
+
 const userDetailsService = async (UserDetails) => {
   console.log("Fetching details for email:", UserDetails.email);
   try {
@@ -124,35 +104,7 @@ const userDetailsService = async (UserDetails) => {
   }
 };
 
-/**
- * Updates user's GitHub and LeetCode profile links.
- * @param {Object} UserDetails - Object containing email, githubId, and leetcodeId.
- * @returns {Object} - Status object with success flag, message, and updated user data.
- */
-const userUpdateLinksService = async (UserDetails) => {
-  const { email, githubId, leetcodeId } = UserDetails;
-  try {
-    // Find user by email and update the specific fields
-    const updatedUser = await User.findOneAndUpdate(
-      { email }, // Filter
-      { githubId, leetcodeId }, // Update
-      { new: true, runValidators: true } // Options: return updated doc, run schema validators
-    ).select('-password'); // Exclude password from returned document
 
-    if (!updatedUser) {
-      return { status: false, message: 'User not found' };
-    }
-    return {
-      status: true,
-      message: 'Links updated successfully',
-      user: updatedUser
-    };
-  } catch (error) {
-    console.error('Error updating user links:', error.message);
-    // Consider more specific error handling (e.g., validation errors)
-    return { status: false, message: 'Server error while updating links' };
-  }
-};
 
 // --- RESUME & SCORING SERVICES ---
 
@@ -173,12 +125,6 @@ const storage = multer.diskStorage({
  */
 const upload = multer({ storage });
 
-/**
- * Helper function to call the Python ATS scoring script.
- * @param {string} text - The extracted resume text.
- * @param {string} role - The target job role.
- * @returns {Promise<Object>} - Promise resolving to the parsed output from the Python script.
- */
 function getATSScore(text, role) {
   return new Promise((resolve, reject) => {
     // Ensure the path to your Python script is correct
@@ -217,11 +163,7 @@ function getATSScore(text, role) {
   });
 }
 
-/**
- * Service to handle resume upload, text extraction, and ATS scoring.
- * @param {Object} params - Object containing filePath, originalname, and role.
- * @returns {Object} - Status object with success flag, message, and ResumeResult data.
- */
+
 const userResumeUploadService = async ({ filePath, originalname, role }) => {
   const ext = path.extname(originalname).toLowerCase();
   console.log("Processing file:", filePath);
@@ -243,7 +185,7 @@ const userResumeUploadService = async ({ filePath, originalname, role }) => {
     console.log(`Extracted text length: ${extractedText.length} characters`);
 
     const scoreResult = await getATSScore(extractedText, role);
-    // Attempt to delete the uploaded file after processing
+
     fs.unlink(filePath, (err) => {
       if (err) console.warn('Warning: Failed to delete uploaded file:', err.message); // Use warn for non-critical
     });
@@ -277,11 +219,6 @@ const userResumeUploadService = async ({ filePath, originalname, role }) => {
 
 // --- CODING STATS FETCHING (GraphQL FIRST) ---
 
-/**
- * Fetches LeetCode data using the official GraphQL API.
- * @param {string} username - The LeetCode username.
- * @returns {Object} - Status object with success flag and data or error message.
- */
 async function fetchLeetcodeDataGraphQL(username) {
     const url = 'https://leetcode.com/graphql/';
     // --- Updated GraphQL Query based on current schema (as of late 2023/early 2024) ---
@@ -324,8 +261,6 @@ async function fetchLeetcodeDataGraphQL(username) {
         }, {
             headers: {
                 'Content-Type': 'application/json',
-                // Optional User-Agent if needed, sometimes helps with rate limits
-                // 'User-Agent': 'Mozilla/5.0 (compatible; ResumeAnalyzer/1.0)'
             }
         });
 
@@ -404,20 +339,14 @@ async function fetchLeetcodeDataGraphQL(username) {
         console.error(`Error fetching LeetCode data via GraphQL for ${username}:`, error.message);
         if (error.response) {
             console.error('GraphQL API Response Status:', error.response.status);
-            // Avoid logging potentially large data objects in production
-            // console.error('GraphQL API Response Data:', JSON.stringify(error.response.data, null, 2));
+
             console.error('GraphQL API Response Data (truncated):', JSON.stringify(error.response.data).substring(0, 500));
         }
         return { status: 'error', message: `GraphQL fetch failed: ${error.message}` };
     }
 }
 
-/**
- * Fetches GitHub and LeetCode statistics for a user.
- * Prioritizes LeetCode GraphQL API, then GitHub API.
- * @param {Object} UserDetails - Object containing githubId and leetcodeId.
- * @returns {Object} - Status object with success flag, message, and combined data.
- */
+
 const fetchLeetcodeGithubStatsService = async (UserDetails) => {
   console.log("Fetching coding stats for:", UserDetails);
   const { githubId, leetcodeId } = UserDetails;
@@ -442,20 +371,6 @@ const fetchLeetcodeGithubStatsService = async (UserDetails) => {
       } catch (graphqlError) {
         console.error(`LeetCode GraphQL Error for ${leetcodeId}:`, graphqlError.message);
         leetcodeGraphQLError = graphqlError.message;
-
-        // --- Fallback (Optional): Scrape LeetCode data ---
-        // If you want to implement scraping as a last resort, uncomment and implement fetchLeetcodeDataScraped
-        /*
-        console.log(`LeetCode GraphQL failed for ${leetcodeId}, attempting fallback scraping...`);
-        const scrapedResult = await fetchLeetcodeDataScraped(leetcodeId);
-        if (scrapedResult.status === 'success') {
-            leetcodeDataResult = scrapedResult.data;
-            console.log(`Successfully scraped LeetCode data for: ${leetcodeId}`);
-        } else {
-            // leetcodeScrapingError = scrapedResult.message; // Define this variable if using
-            console.error(`LeetCode scraping also failed for ${leetcodeId}:`, scrapedResult.message);
-        }
-        */
       }
     }
 
@@ -467,10 +382,7 @@ const fetchLeetcodeGithubStatsService = async (UserDetails) => {
         // await new Promise(resolve => setTimeout(resolve, 100));
         const githubResponse = await axios.get(`https://api.github.com/users/${githubId}`, {
              headers: {
-                 // It's good practice to add a User-Agent header
                  'User-Agent': 'ResumeAnalyzerApp' // Or your app's name
-                 // If you have a GitHub token for higher rate limits, add it:
-                 // 'Authorization': `token YOUR_GITHUB_TOKEN`
              }
          });
         if (githubResponse.data) {
@@ -483,7 +395,6 @@ const fetchLeetcodeGithubStatsService = async (UserDetails) => {
            console.error('GitHub API Response Status:', githubError.response.status);
            // console.error('GitHub API Response Data:', githubError.response.data);
         }
-        // GitHub failure doesn't stop the process, partial data is returned
       }
     }
 
@@ -542,11 +453,6 @@ const fetchLeetcodeGithubStatsService = async (UserDetails) => {
 
 // --- AI REPORT GENERATION ---
 
-/**
- * Generates an AI report based on resume and coding stats.
- * @param {Object} UserDetails - Object containing resumeText, scoreData, githubStats, leetcodeStats.
- * @returns {Object} - Status object with success flag, message, and report data.
- */
 const generateReportService = async (UserDetails) => {
   const { resumeText, scoreData, githubStats, leetcodeStats } = UserDetails;
 
@@ -589,9 +495,8 @@ ${leetcodeStats ? JSON.stringify(leetcodeStats, null, 2) : 'No LeetCode data pro
 Please ensure the report is encouraging yet honest, provides specific examples where possible, and avoids generic statements. Tailor the language for a technical professional.`;
 
   try {
-    // Ensure the model name and configuration are correct
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash', // Or gemini-pro, check Google documentation and billing
+      model: 'gemini-1.5-flash',
       generationConfig: {
         temperature: 0.2, // Low temperature for more factual report
         topP: 0.9,
@@ -617,9 +522,7 @@ Please ensure the report is encouraging yet honest, provides specific examples w
     };
   } catch (error) {
     console.error('Gemini API Error:', error.message);
-    // Log stack trace for debugging
     console.error(error.stack);
-    // Provide user-friendly message while logging details
     let userMessage = 'Failed to generate report using AI.';
     if (error.message.includes('API_KEY_INVALID') || error.message.includes('API key')) {
         userMessage += ' (Please check API key configuration.)';
@@ -629,19 +532,17 @@ Please ensure the report is encouraging yet honest, provides specific examples w
     return {
       status: false,
       message: userMessage,
-      error: error.message // Include error details for internal debugging
+      error: error.message 
     };
   }
 };
 
-// Export all service functions
 module.exports = {
   userCreateService,
   userLoginService,
   userDetailsService,
-  userUpdateLinksService,
   userResumeUploadService,
-  fetchLeetcodeGithubStatsService, // Updated function using fixed GraphQL
+  fetchLeetcodeGithubStatsService, 
   generateReportService,
-  upload, // Export multer upload middleware for use in routes
+  upload, 
 };
